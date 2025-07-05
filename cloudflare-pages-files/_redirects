@@ -1,0 +1,8 @@
+# Redirect root to install.sh for curl commands
+# This makes `curl vpn-deployer.rymnc.com` work
+/ /install.sh 200
+
+# Redirect common variations
+/install /install.sh 301
+/setup /install.sh 301
+/get /install.sh 301
