@@ -48,7 +48,7 @@ impl DigitalOceanClient {
     pub async fn create_droplet(&self, auth_key: &str) -> Result<Droplet> {
         let cloud_init_script = self.generate_cloud_init_script(auth_key);
         let droplet_request = DropletRequest::default();
-        
+
         // Add cloud-init script
         let payload = json!({
             "name": droplet_request.name,
@@ -122,11 +122,11 @@ impl DigitalOceanClient {
 runcmd:
   - ['sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh']
   - ['sh', '-c', "echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf && echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf && sudo sysctl -p /etc/sysctl.d/99-tailscale.conf" ]
+  - ['systemctl', 'enable', 'tailscaled']
+  - ['systemctl', 'start', 'tailscaled']
   - ['tailscale', 'up', '--auth-key={}']
   - ['tailscale', 'set', '--ssh']
   - ['tailscale', 'set', '--advertise-exit-node']
-  - ['systemctl', 'enable', 'tailscaled']
-  - ['systemctl', 'start', 'tailscaled']
 
 final_message: "Tailscale VPN server setup complete and connected!"
 "#, auth_key)
