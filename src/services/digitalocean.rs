@@ -125,6 +125,8 @@ runcmd:
   - ['tailscale', 'up', '--auth-key={}']
   - ['tailscale', 'set', '--ssh']
   - ['tailscale', 'set', '--advertise-exit-node']
+  - ['systemctl', 'enable', 'tailscaled']
+  - ['systemctl', 'start', 'tailscaled']
 
 final_message: "Tailscale VPN server setup complete and connected!"
 "#, auth_key)
