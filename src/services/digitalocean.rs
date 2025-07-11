@@ -45,9 +45,14 @@ impl DigitalOceanClient {
         }
     }
 
-    pub async fn create_droplet(&self, auth_key: &str) -> Result<Droplet> {
+    pub async fn create_droplet(&self, auth_key: &str, region: Option<crate::models::RegionOption>) -> Result<Droplet> {
         let cloud_init_script = self.generate_cloud_init_script(auth_key);
-        let droplet_request = DropletRequest::default();
+        let mut droplet_request = DropletRequest::default();
+
+        // Set region if provided
+        if let Some(region_option) = region {
+            droplet_request.region = region_option.slug;
+        }
 
         // Add cloud-init script
         let payload = json!({
@@ -119,53 +124,42 @@ impl DigitalOceanClient {
 
     fn generate_cloud_init_script(&self, auth_key: &str) -> String {
         format!(r#"#cloud-config
+packages:
+  - curl
+  - wget
+
 runcmd:
+  # Install Tailscale
   - ['sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh']
-  - ['sh', '-c', "echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf && echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf && sudo sysctl -p /etc/sysctl.d/99-tailscale.conf" ]
+  
+  # Configure IP forwarding
+  - ['sh', '-c', 'echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.d/99-tailscale.conf']
+  - ['sh', '-c', 'echo "net.ipv6.conf.all.forwarding = 1" | tee -a /etc/sysctl.d/99-tailscale.conf']
+  - ['sysctl', '-p', '/etc/sysctl.d/99-tailscale.conf']
+  
+  # Clean up any existing machine identity
+  # See: https://github.com/tailscale/tailscale/issues/9382
+  - ['systemctl', 'stop', 'tailscaled']
+  - ['sh', '-c', 'rm -rf /var/lib/tailscale/* || true']
+  
+  # Start Tailscale daemon with clean state
   - ['systemctl', 'enable', 'tailscaled']
   - ['systemctl', 'start', 'tailscaled']
-  - ['tailscale', 'up', '--auth-key={}']
+  
+  # Wait for daemon to be ready
+  - ['sleep', '10']
+  
+  # Connect to Tailscale with auth key
+  - ['tailscale', 'up', '--reset', '--force-reauth', '--auth-key={}', '--accept-routes', '--advertise-exit-node']
+  
+  # Enable SSH access
   - ['tailscale', 'set', '--ssh']
-  - ['tailscale', 'set', '--advertise-exit-node']
+  
+  # Log success
+  - ['sh', '-c', 'echo "SUCCESS: Tailscale connected at $(date)" > /var/log/tailscale-success.log']
+  - ['sh', '-c', 'tailscale status >> /var/log/tailscale-success.log 2>&1']
 
-final_message: "Tailscale VPN server setup complete and connected!"
+final_message: "Cloud-init complete. Tailscale setup finished."
 "#, auth_key)
     }
-
-    pub async fn restart_droplet(&self, droplet_id: u64) -> Result<()> {
-        let payload = json!({
-            "type": "reboot"
-        });
-
-        let response = self
-            .client
-            .post(&format!("{}/droplets/{}/actions", DO_API_BASE, droplet_id))
-            .json(&payload)
-            .send()
-            .await?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            let error_text = response.text().await?;
-            Err(anyhow!("Failed to restart droplet: {}", error_text))
-        }
-    }
-
-    pub async fn get_droplet_status(&self, droplet_id: u64) -> Result<String> {
-        let response = self
-            .client
-            .get(&format!("{}/droplets/{}", DO_API_BASE, droplet_id))
-            .send()
-            .await?;
-
-        if response.status().is_success() {
-            let droplet_response: DropletResponse = response.json().await?;
-            Ok(droplet_response.droplet.status)
-        } else {
-            let error_text = response.text().await?;
-            Err(anyhow!("Failed to get droplet status: {}", error_text))
-        }
-    }
-
 }

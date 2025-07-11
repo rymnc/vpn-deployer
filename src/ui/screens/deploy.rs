@@ -9,11 +9,11 @@ use ratatui::{
 use crate::app::DeployProgress;
 use crate::ui::centered_rect;
 
-pub fn render(f: &mut Frame, area: Rect, progress: &DeployProgress) {
+pub fn render(f: &mut Frame, area: Rect, progress: &DeployProgress, region_name: Option<&str>) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .title("🚀 Step 3: Deploying Your VPN Server")
+        .title("🚀 Step 4: Deploying Your VPN Server")
         .title_alignment(Alignment::Center)
         .style(Style::default().fg(Color::Blue));
 
@@ -105,11 +105,12 @@ pub fn render(f: &mut Frame, area: Rect, progress: &DeployProgress) {
     f.render_widget(status_paragraph, chunks[2]);
 
     // Info text
+    let region_display = region_name.unwrap_or("New York");
     let info_text = vec![
         Line::from("This usually takes 2-3 minutes..."),
         Line::from(""),
         Line::from("💰 Server cost: $4/month (~$0.006/hour)"),
-        Line::from("📍 Server location: New York"),
+        Line::from(format!("📍 Server location: {}", region_display)),
         Line::from("💾 Server specs: 512MB RAM, 1 CPU, 10GB SSD"),
     ];
 

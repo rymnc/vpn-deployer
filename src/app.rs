@@ -1,5 +1,6 @@
 use anyhow::Result;
 use crate::services::digitalocean::DigitalOceanClient;
+use crate::models::RegionOption;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
@@ -13,6 +14,7 @@ pub enum DeploymentMessage {
 pub enum AppState {
     Welcome,
     Auth { token: String, cursor: usize },
+    RegionSelect { selected_index: usize },
     TailscaleAuth { auth_key: String, cursor: usize },
     Loading { message: String },
     Deploy { progress: DeployProgress },
@@ -40,6 +42,7 @@ pub struct App {
     pub should_quit: bool,
     do_client: Option<DigitalOceanClient>,
     tailscale_auth_key: Option<String>,
+    pub selected_region: Option<RegionOption>,
     deployment_receiver: Option<mpsc::UnboundedReceiver<DeploymentMessage>>,
 }
 
@@ -50,6 +53,7 @@ impl App {
             should_quit: false,
             do_client: None,
             tailscale_auth_key: None,
+            selected_region: None,
             deployment_receiver: None,
         }
     }
@@ -64,8 +68,17 @@ impl App {
             }
             AppState::Auth { token, .. } => {
                 if !token.is_empty() {
-                    // Store DO client and move to Tailscale auth step
+                    // Store DO client and move to region selection
                     self.do_client = Some(DigitalOceanClient::new(token.clone()));
+                    self.state = AppState::RegionSelect {
+                        selected_index: 0,
+                    };
+                }
+            }
+            AppState::RegionSelect { selected_index } => {
+                let regions = RegionOption::available_regions();
+                if let Some(region) = regions.get(*selected_index) {
+                    self.selected_region = Some(region.clone());
                     self.state = AppState::TailscaleAuth {
                         auth_key: String::new(),
                         cursor: 0,
@@ -106,6 +119,22 @@ impl App {
                 token.insert(*cursor, c);
                 *cursor += 1;
             }
+            AppState::RegionSelect { selected_index } => {
+                let regions = RegionOption::available_regions();
+                match c {
+                    'j' | 's' => {
+                        if *selected_index < regions.len() - 1 {
+                            *selected_index += 1;
+                        }
+                    }
+                    'k' | 'w' => {
+                        if *selected_index > 0 {
+                            *selected_index -= 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
             AppState::TailscaleAuth { auth_key, cursor } => {
                 auth_key.insert(*cursor, c);
                 *cursor += 1;
@@ -126,6 +155,29 @@ impl App {
                 if *cursor > 0 {
                     auth_key.remove(*cursor - 1);
                     *cursor -= 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn handle_up(&mut self) {
+        match &mut self.state {
+            AppState::RegionSelect { selected_index } => {
+                if *selected_index > 0 {
+                    *selected_index -= 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn handle_down(&mut self) {
+        match &mut self.state {
+            AppState::RegionSelect { selected_index } => {
+                let regions = RegionOption::available_regions();
+                if *selected_index < regions.len() - 1 {
+                    *selected_index += 1;
                 }
             }
             _ => {}
@@ -166,10 +218,11 @@ impl App {
 
         let client = self.do_client.clone();
         let auth_key = self.tailscale_auth_key.clone();
+        let region = self.selected_region.clone();
         
         tokio::spawn(async move {
             if let (Some(client), Some(auth_key)) = (client, auth_key) {
-                let _ = Self::deploy_server_task(client, auth_key, tx).await;
+                let _ = Self::deploy_server_task(client, auth_key, region, tx).await;
             }
         });
 
@@ -179,6 +232,7 @@ impl App {
     async fn deploy_server_task(
         client: DigitalOceanClient,
         auth_key: String,
+        region: Option<RegionOption>,
         tx: mpsc::UnboundedSender<DeploymentMessage>,
     ) -> Result<()> {
         let send_progress = |step: usize, status: String| {
@@ -193,7 +247,7 @@ impl App {
                 send_progress(2, "Creating server...".to_string());
                 
                 // Step 2: Create droplet
-                match client.create_droplet(&auth_key).await {
+                match client.create_droplet(&auth_key, region).await {
                     Ok(droplet) => {
                         send_progress(3, "Waiting for server to be ready...".to_string());
                         
@@ -202,22 +256,14 @@ impl App {
                         
                         send_progress(4, "Installing and configuring Tailscale...".to_string());
                         
-                        // Step 4: Tailscale is installed via cloud-init
-                        // Wait a bit for the service to start
-                        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                        // Step 4: Wait for Tailscale setup to complete
+                        // The cloud-init script will handle the entire setup process
+                        Self::wait_for_tailscale_setup(tx.clone()).await?;
                         
-                        send_progress(5, "Restarting server...".to_string());
+                        send_progress(5, "Finalizing server setup...".to_string());
                         
-                        // Step 5: Restart the droplet
-                        client.restart_droplet(droplet.id).await?;
-                        
-                        send_progress(6, "Waiting for server to come back online...".to_string());
-                        
-                        // Step 6: Wait for server to be ready after restart
+                        // Step 5: Get final server info
                         let server_info = client.wait_for_droplet_ready(droplet.id).await?;
-                        
-                        // Track restart progress in real-time
-                        Self::track_restart_progress_task(client, droplet.id, tx.clone()).await?;
                         
                         // Complete setup
                         let _ = tx.send(DeploymentMessage::Complete {
@@ -245,67 +291,42 @@ impl App {
         Ok(())
     }
 
-    async fn track_restart_progress_task(
-        client: DigitalOceanClient,
-        droplet_id: u64,
+    async fn wait_for_tailscale_setup(
         tx: mpsc::UnboundedSender<DeploymentMessage>,
     ) -> Result<()> {
         let send_progress = |step: usize, status: String| {
             let _ = tx.send(DeploymentMessage::Progress { step, status });
         };
 
-        // Show detailed restart progress
-        send_progress(6, "Initiating server restart...".to_string());
+        // Show detailed setup progress
+        let setup_steps = vec![
+            "Downloading and installing Tailscale...",
+            "Configuring IP forwarding...",
+            "Starting Tailscale daemon...",
+            "Connecting to your Tailnet...",
+            "Enabling SSH access...",
+            "Configuring as exit node...",
+            "Finalizing setup...",
+        ];
         
-        // Wait a moment for the restart to begin
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
-        send_progress(6, "Server is restarting...".to_string());
-        
-        // Monitor the restart process
-        let mut attempts = 0;
-        let max_attempts = 60; // 5 minutes maximum
-        
-        loop {
-            attempts += 1;
+        for (i, step_msg) in setup_steps.iter().enumerate() {
+            send_progress(4, step_msg.to_string());
             
-            // Update progress message based on attempts
-            let progress_msg = match attempts {
-                1..=10 => "Shutting down services...",
-                11..=20 => "Restarting server...",
-                21..=40 => "Booting up system...",
-                41..=50 => "Starting services...",
-                _ => "Finalizing restart...",
+            // Wait time varies based on step complexity
+            let wait_time = match i {
+                0 => 15, // Installing takes longest
+                1 => 5,  // IP forwarding config
+                2 => 10, // Starting daemon
+                3 => 15, // Connecting to Tailnet
+                4 => 5,  // SSH setup
+                5 => 5,  // Exit node config
+                _ => 10, // Final steps
             };
             
-            send_progress(6, progress_msg.to_string());
-            
-            // Check if droplet is back online
-            match client.get_droplet_status(droplet_id).await {
-                Ok(status) => {
-                    if status == "active" {
-                        send_progress(6, "Server restart completed successfully!".to_string());
-                        break;
-                    }
-                }
-                Err(_) => {
-                    // Droplet might be temporarily unreachable during restart
-                    if attempts > max_attempts {
-                        return Err(anyhow::anyhow!("Server restart timed out after 5 minutes"));
-                    }
-                }
-            }
-            
-            if attempts > max_attempts {
-                return Err(anyhow::anyhow!("Server restart timed out after 5 minutes"));
-            }
-            
-            // Wait before next check
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(wait_time)).await;
         }
         
-        // Additional wait for services to fully initialize
-        send_progress(6, "Waiting for services to initialize...".to_string());
+        send_progress(4, "Tailscale setup completed successfully!".to_string());
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         
         Ok(())

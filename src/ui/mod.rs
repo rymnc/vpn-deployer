@@ -17,9 +17,13 @@ pub fn render(f: &mut Frame, app: &App) {
     match &app.state {
         AppState::Welcome => screens::welcome::render(f, chunks[0]),
         AppState::Auth { token, cursor } => screens::auth::render(f, chunks[0], token, *cursor),
+        AppState::RegionSelect { selected_index } => screens::region_select::render(f, chunks[0], *selected_index),
         AppState::TailscaleAuth { auth_key, cursor } => screens::tailscale_auth::render(f, chunks[0], auth_key, *cursor),
         AppState::Loading { message } => screens::loading::render(f, chunks[0], message),
-        AppState::Deploy { progress } => screens::deploy::render(f, chunks[0], progress),
+        AppState::Deploy { progress } => {
+            let region_name = app.selected_region.as_ref().map(|r| r.name.as_str());
+            screens::deploy::render(f, chunks[0], progress, region_name);
+        }
         AppState::Complete { server_info } => screens::complete::render(f, chunks[0], server_info),
         AppState::Error { message } => screens::error::render(f, chunks[0], message),
     }

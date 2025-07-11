@@ -12,7 +12,7 @@ pub fn render(f: &mut Frame, area: Rect, auth_key: &str, _cursor: usize) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .title("🔑 Step 2: Tailscale Authentication")
+        .title("🔑 Step 3: Tailscale Authentication")
         .title_alignment(Alignment::Center)
         .style(Style::default().fg(Color::Blue));
 
@@ -46,7 +46,10 @@ pub fn render(f: &mut Frame, area: Rect, auth_key: &str, _cursor: usize) {
         Line::from("2. Log in to your Tailscale account"),
         Line::from("3. Click \"Generate auth key...\""),
         Line::from("4. Enable these options:"),
-        Line::from("   ✓ Reusable"),
+        Line::from(Span::styled(
+            "   ✓ Reusable (REQUIRED - one-time keys will fail!)",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )),
         Line::from("   ✓ Ephemeral (optional, for temporary servers)"),
         Line::from("5. Copy the auth key and paste it below"),
     ];
@@ -97,6 +100,11 @@ pub fn render(f: &mut Frame, area: Rect, auth_key: &str, _cursor: usize) {
         Line::from("💡 Auth keys are used securely and not stored permanently."),
         Line::from("🔒 Your key will automatically configure the VPN server."),
         Line::from("🌐 The server will be set up as an exit node for secure browsing."),
+        Line::from(""),
+        Line::from(Span::styled(
+            "⚠️  Common issues: Make sure the key is REUSABLE and not expired!",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )),
     ];
 
     let help_paragraph = Paragraph::new(help_text)

@@ -121,6 +121,12 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Resul
                     KeyCode::Backspace => {
                         app.handle_backspace();
                     }
+                    KeyCode::Up => {
+                        app.handle_up();
+                    }
+                    KeyCode::Down => {
+                        app.handle_down();
+                    }
                     _ => {}
                 }
             }

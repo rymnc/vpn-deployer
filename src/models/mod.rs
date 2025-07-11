@@ -68,6 +68,13 @@ pub struct AccountResponse {
 }
 
 #[derive(Debug, Clone)]
+pub struct RegionOption {
+    pub name: String,
+    pub slug: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct ServerInfo {
     pub name: String,
     pub ip: String,
@@ -79,10 +86,42 @@ impl Default for DropletRequest {
             name: format!("tailscale-vpn-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
             region: "nyc1".to_string(),
             size: "s-1vcpu-512mb-10gb".to_string(), // Cheapest option
-            image: "ubuntu-22-04-x64".to_string(),
+            image: "ubuntu-24-04-x64".to_string(),
             ssh_keys: vec![],
             monitoring: true,
             tags: vec!["tailscale-vpn".to_string()],
         }
+    }
+}
+
+impl RegionOption {
+    pub fn available_regions() -> Vec<RegionOption> {
+        vec![
+            RegionOption {
+                name: "New York".to_string(),
+                slug: "nyc1".to_string(),
+                description: "NYC - United States".to_string(),
+            },
+            RegionOption {
+                name: "San Francisco".to_string(),
+                slug: "sfo3".to_string(),
+                description: "SF - United States".to_string(),
+            },
+            RegionOption {
+                name: "Amsterdam".to_string(),
+                slug: "ams3".to_string(),
+                description: "AMS - Netherlands".to_string(),
+            },
+            RegionOption {
+                name: "Singapore".to_string(),
+                slug: "sgp1".to_string(),
+                description: "SG - Singapore".to_string(),
+            },
+            RegionOption {
+                name: "Sydney".to_string(),
+                slug: "syd1".to_string(),
+                description: "SYD - Australia".to_string(),
+            },
+        ]
     }
 }
