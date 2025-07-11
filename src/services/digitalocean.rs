@@ -45,7 +45,11 @@ impl DigitalOceanClient {
         }
     }
 
-    pub async fn create_droplet(&self, auth_key: &str, region: Option<crate::models::RegionOption>) -> Result<Droplet> {
+    pub async fn create_droplet(
+        &self,
+        auth_key: &str,
+        region: Option<crate::models::RegionOption>,
+    ) -> Result<Droplet> {
         let cloud_init_script = self.generate_cloud_init_script(auth_key);
         let mut droplet_request = DropletRequest::default();
 
@@ -123,43 +127,46 @@ impl DigitalOceanClient {
     }
 
     fn generate_cloud_init_script(&self, auth_key: &str) -> String {
-        format!(r#"#cloud-config
-packages:
-  - curl
-  - wget
+        format!(
+            r#"#cloud-config
+    packages:
+      - curl
+      - wget
 
-runcmd:
-  # Install Tailscale
-  - ['sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh']
-  
-  # Configure IP forwarding
-  - ['sh', '-c', 'echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.d/99-tailscale.conf']
-  - ['sh', '-c', 'echo "net.ipv6.conf.all.forwarding = 1" | tee -a /etc/sysctl.d/99-tailscale.conf']
-  - ['sysctl', '-p', '/etc/sysctl.d/99-tailscale.conf']
-  
-  # Clean up any existing machine identity
-  # See: https://github.com/tailscale/tailscale/issues/9382
-  - ['systemctl', 'stop', 'tailscaled']
-  - ['sh', '-c', 'rm -rf /var/lib/tailscale/* || true']
-  
-  # Start Tailscale daemon with clean state
-  - ['systemctl', 'enable', 'tailscaled']
-  - ['systemctl', 'start', 'tailscaled']
-  
-  # Wait for daemon to be ready
-  - ['sleep', '10']
-  
-  # Connect to Tailscale with auth key
-  - ['tailscale', 'up', '--reset', '--force-reauth', '--auth-key={}', '--accept-routes', '--advertise-exit-node']
-  
-  # Enable SSH access
-  - ['tailscale', 'set', '--ssh']
-  
-  # Log success
-  - ['sh', '-c', 'echo "SUCCESS: Tailscale connected at $(date)" > /var/log/tailscale-success.log']
-  - ['sh', '-c', 'tailscale status >> /var/log/tailscale-success.log 2>&1']
+    runcmd:
+      # Install Tailscale
+      - ['sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh']
 
-final_message: "Cloud-init complete. Tailscale setup finished."
-"#, auth_key)
+      # Configure IP forwarding
+      - ['sh', '-c', 'echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.d/99-tailscale.conf']
+      - ['sh', '-c', 'echo "net.ipv6.conf.all.forwarding = 1" | tee -a /etc/sysctl.d/99-tailscale.conf']
+      - ['sysctl', '-p', '/etc/sysctl.d/99-tailscale.conf']
+
+      # Clean up any existing machine identity
+      # See: https://github.com/tailscale/tailscale/issues/9382
+      - ['systemctl', 'stop', 'tailscaled']
+      - ['sh', '-c', 'rm -rf /var/lib/tailscale/* || true']
+
+      # Start Tailscale daemon with clean state
+      - ['systemctl', 'enable', 'tailscaled']
+      - ['systemctl', 'start', 'tailscaled']
+
+      # Wait for daemon to be ready
+      - ['sleep', '10']
+
+      # Connect to Tailscale with auth key (with retry logic)
+      - ['sh', '-c', 'for i in {{1..10}}; do if tailscale up --reset --force-reauth --auth-key={} --accept-routes --advertise-exit-node; then echo "Tailscale connected successfully on attempt $i"; break; else echo "Attempt $i failed, retrying in 1 second..."; sleep 1; fi; done']
+
+      # Enable SSH access
+      - ['tailscale', 'set', '--ssh']
+
+      # Log success
+      - ['sh', '-c', 'echo "SUCCESS: Tailscale connected at $(date)" > /var/log/tailscale-success.log']
+      - ['sh', '-c', 'tailscale status >> /var/log/tailscale-success.log 2>&1']
+
+    final_message: "Cloud-init complete. Tailscale setup finished."
+    "#,
+            auth_key
+        )
     }
 }

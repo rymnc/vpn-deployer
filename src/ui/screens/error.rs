@@ -24,10 +24,7 @@ pub fn render(f: &mut Frame, area: Rect, message: &str) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(inner);
 
     // Error message
@@ -35,15 +32,10 @@ pub fn render(f: &mut Frame, area: Rect, message: &str) {
         Line::from(""),
         Line::from(Span::styled(
             "Something went wrong:",
-            Style::default()
-                .fg(Color::Red)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from(Span::styled(
-            message,
-            Style::default().fg(Color::White),
-        )),
+        Line::from(Span::styled(message, Style::default().fg(Color::White))),
         Line::from(""),
         Line::from("Common issues:"),
         Line::from("• Invalid DigitalOcean API token"),
@@ -62,14 +54,12 @@ pub fn render(f: &mut Frame, area: Rect, message: &str) {
     f.render_widget(error_paragraph, chunks[0]);
 
     // Footer
-    let footer_text = vec![
-        Line::from(Span::styled(
-            "Press Enter to go back or 'q' to quit",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-    ];
+    let footer_text = vec![Line::from(Span::styled(
+        "Press Enter to go back or 'q' to quit",
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    ))];
 
     let footer_paragraph = Paragraph::new(footer_text)
         .style(Style::default().fg(Color::White))

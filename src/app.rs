@@ -1,6 +1,6 @@
-use anyhow::Result;
-use crate::services::digitalocean::DigitalOceanClient;
 use crate::models::RegionOption;
+use crate::services::digitalocean::DigitalOceanClient;
+use anyhow::Result;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,6 @@ pub struct DeployProgress {
     pub total_steps: usize,
     pub status: String,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct ServerInfo {
@@ -70,9 +69,7 @@ impl App {
                 if !token.is_empty() {
                     // Store DO client and move to region selection
                     self.do_client = Some(DigitalOceanClient::new(token.clone()));
-                    self.state = AppState::RegionSelect {
-                        selected_index: 0,
-                    };
+                    self.state = AppState::RegionSelect { selected_index: 0 };
                 }
             }
             AppState::RegionSelect { selected_index } => {
@@ -219,7 +216,7 @@ impl App {
         let client = self.do_client.clone();
         let auth_key = self.tailscale_auth_key.clone();
         let region = self.selected_region.clone();
-        
+
         tokio::spawn(async move {
             if let (Some(client), Some(auth_key)) = (client, auth_key) {
                 let _ = Self::deploy_server_task(client, auth_key, region, tx).await;
@@ -241,30 +238,30 @@ impl App {
 
         // Step 1: Validate credentials
         send_progress(1, "Validating credentials...".to_string());
-        
+
         match client.validate_token().await {
             Ok(_) => {
                 send_progress(2, "Creating server...".to_string());
-                
+
                 // Step 2: Create droplet
                 match client.create_droplet(&auth_key, region).await {
                     Ok(droplet) => {
                         send_progress(3, "Waiting for server to be ready...".to_string());
-                        
+
                         // Step 3: Wait for server
                         let _server_info = client.wait_for_droplet_ready(droplet.id).await?;
-                        
+
                         send_progress(4, "Installing and configuring Tailscale...".to_string());
-                        
+
                         // Step 4: Wait for Tailscale setup to complete
                         // The cloud-init script will handle the entire setup process
                         Self::wait_for_tailscale_setup(tx.clone()).await?;
-                        
+
                         send_progress(5, "Finalizing server setup...".to_string());
-                        
+
                         // Step 5: Get final server info
                         let server_info = client.wait_for_droplet_ready(droplet.id).await?;
-                        
+
                         // Complete setup
                         let _ = tx.send(DeploymentMessage::Complete {
                             server_info: ServerInfo {
@@ -291,9 +288,7 @@ impl App {
         Ok(())
     }
 
-    async fn wait_for_tailscale_setup(
-        tx: mpsc::UnboundedSender<DeploymentMessage>,
-    ) -> Result<()> {
+    async fn wait_for_tailscale_setup(tx: mpsc::UnboundedSender<DeploymentMessage>) -> Result<()> {
         let send_progress = |step: usize, status: String| {
             let _ = tx.send(DeploymentMessage::Progress { step, status });
         };
@@ -308,10 +303,10 @@ impl App {
             "Configuring as exit node...",
             "Finalizing setup...",
         ];
-        
+
         for (i, step_msg) in setup_steps.iter().enumerate() {
             send_progress(4, step_msg.to_string());
-            
+
             // Wait time varies based on step complexity
             let wait_time = match i {
                 0 => 15, // Installing takes longest
@@ -322,14 +317,13 @@ impl App {
                 5 => 5,  // Exit node config
                 _ => 10, // Final steps
             };
-            
+
             tokio::time::sleep(tokio::time::Duration::from_secs(wait_time)).await;
         }
-        
+
         send_progress(4, "Tailscale setup completed successfully!".to_string());
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        
+
         Ok(())
     }
-
 }

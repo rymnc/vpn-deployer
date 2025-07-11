@@ -83,7 +83,10 @@ pub struct ServerInfo {
 impl Default for DropletRequest {
     fn default() -> Self {
         Self {
-            name: format!("tailscale-vpn-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
+            name: format!(
+                "tailscale-vpn-{}",
+                uuid::Uuid::new_v4().to_string()[..8].to_string()
+            ),
             region: "nyc1".to_string(),
             size: "s-1vcpu-512mb-10gb".to_string(), // Cheapest option
             image: "ubuntu-24-04-x64".to_string(),

@@ -60,7 +60,7 @@ pub fn render(f: &mut Frame, area: Rect, selected_index: usize) {
             };
 
             let prefix = if i == selected_index { "► " } else { "  " };
-            
+
             let content = vec![
                 Line::from(vec![
                     Span::styled(prefix, style),
@@ -77,12 +77,13 @@ pub fn render(f: &mut Frame, area: Rect, selected_index: usize) {
         })
         .collect();
 
-    let list = List::new(items)
-        .block(Block::default()
+    let list = List::new(items).block(
+        Block::default()
             .borders(Borders::ALL)
             .title("Available Regions ($4/month)")
             .title_alignment(Alignment::Center)
-            .style(Style::default().fg(Color::Green)));
+            .style(Style::default().fg(Color::Green)),
+    );
 
     f.render_widget(list, chunks[1]);
 

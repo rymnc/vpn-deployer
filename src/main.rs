@@ -48,7 +48,7 @@ fn print_help() {
 async fn main() -> Result<()> {
     // Handle command line arguments
     let args: Vec<String> = std::env::args().collect();
-    
+
     if args.len() > 1 {
         match args[1].as_str() {
             "--help" | "-h" => {
@@ -102,7 +102,10 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Resul
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') => {
-                        if matches!(app.state, AppState::Welcome | AppState::Complete { .. } | AppState::Error { .. }) {
+                        if matches!(
+                            app.state,
+                            AppState::Welcome | AppState::Complete { .. } | AppState::Error { .. }
+                        ) {
                             return Ok(());
                         }
                     }

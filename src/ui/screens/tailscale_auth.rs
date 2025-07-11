@@ -103,7 +103,9 @@ pub fn render(f: &mut Frame, area: Rect, auth_key: &str, _cursor: usize) {
         Line::from(""),
         Line::from(Span::styled(
             "⚠️  Common issues: Make sure the key is REUSABLE and not expired!",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         )),
     ];
 

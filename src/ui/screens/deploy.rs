@@ -36,10 +36,26 @@ pub fn render(f: &mut Frame, area: Rect, progress: &DeployProgress, region_name:
     // Step indicators
     let steps = vec![
         ("✓", "Validating credentials", progress.current_step > 1),
-        ("⏳", "Creating server ($4/month)", progress.current_step > 2),
-        ("⏳", "Waiting for server to be ready", progress.current_step > 3),
-        ("⏳", "Installing and configuring Tailscale", progress.current_step > 4),
-        ("⏳", "Connecting to your Tailnet", progress.current_step > 5),
+        (
+            "⏳",
+            "Creating server ($4/month)",
+            progress.current_step > 2,
+        ),
+        (
+            "⏳",
+            "Waiting for server to be ready",
+            progress.current_step > 3,
+        ),
+        (
+            "⏳",
+            "Installing and configuring Tailscale",
+            progress.current_step > 4,
+        ),
+        (
+            "⏳",
+            "Connecting to your Tailnet",
+            progress.current_step > 5,
+        ),
     ];
 
     let step_lines: Vec<Line> = steps
