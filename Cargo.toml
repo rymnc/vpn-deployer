@@ -4,11 +4,11 @@ version = "0.4.0"
 edition = "2021"
 
 [dependencies]
-ratatui = "0.27"
-crossterm = "0.27"
-tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-serde = { version = "1.0", features = ["derive"] }
+ratatui = { version = "0.27", features = ["crossterm"], default-features = false }
+crossterm = { version = "0.27", default-features = false }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.12", features = ["json"], default-features = false }
+serde = { version = "1.0", features = ["serde_derive"], default-features = false }
 serde_json = "1.0"
-uuid = { version = "1.0", features = ["v4"] }
-anyhow = "1.0"
+uuid = { version = "1.0", features = ["v4"], default-features = false }
+anyhow = { version = "1.0", default-features = false }
